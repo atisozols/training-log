@@ -1,10 +1,10 @@
-import Link from "next/link";
-import { getActiveProgram, getDoneWorkouts, getNextWorkout, getUser, isOwner } from "@/lib/data";
-import { computeXp, daysBetween, weekStreak } from "@/lib/game";
-import { AlertIcon, FlameIcon, PlayIcon } from "@/components/Icons";
-import { MorningCheckIn } from "@/components/MorningCheckIn";
+"use client";
 
-export const dynamic = "force-dynamic";
+import Link from "next/link";
+import { useState } from "react";
+import { Loading, useData } from "@/components/DataProvider";
+import { computeXp, daysBetween, weekStreak } from "@/lib/game";
+import { AlertIcon, FlameIcon, MoonIcon, PlayIcon } from "@/components/Icons";
 
 const BLOCK_LABEL: Record<string, string> = {
   warmup: "Warm-up",
@@ -16,24 +16,19 @@ const BLOCK_LABEL: Record<string, string> = {
 };
 const BLOCK_ORDER = ["warmup", "rehab", "strength", "upper", "conditioning", "cooldown"];
 
-export default async function TodayPage() {
-  const [user, owner] = await Promise.all([getUser(), isOwner()]);
+export default function TodayPage() {
+  const { ready, owner, email, activeProgram: program, activePhases: phases, currentPhase, nextWorkout: next, done, actions } =
+    useData();
+
+  if (!ready) return <Loading />;
   if (!owner) {
     return (
       <div className="flex min-h-[70dvh] flex-col justify-center gap-3">
         <h1 className="font-display text-3xl font-bold">Almost there</h1>
-        <p className="text-muted">
-          Signed in as {user?.email}. This account isn&apos;t activated yet, so there&apos;s no data to show.
-        </p>
+        <p className="text-muted">Signed in as {email}. This account isn&apos;t activated yet.</p>
       </div>
     );
   }
-
-  const [{ program, phases, currentPhase }, next, done] = await Promise.all([
-    getActiveProgram(),
-    getNextWorkout(),
-    getDoneWorkouts(),
-  ]);
 
   const now = new Date();
   const { xp, level, pct } = computeXp(done);
@@ -45,13 +40,11 @@ export default async function TodayPage() {
       w.reflection?.pain_next_morning == null &&
       new Date(w.completed_at).toDateString() !== now.toDateString(),
   );
-
   const daysLeft = program?.target_date ? Math.max(0, daysBetween(now, new Date(program.target_date))) : null;
-
   const blockCounts = next
-    ? BLOCK_ORDER.map((b) => ({ b, n: next.workout_exercises.filter((x) => x.block === b).length })).filter((x) => x.n)
+    ? BLOCK_ORDER.map((b) => ({ b, n: next.items.filter((x) => x.block === b).length })).filter((x) => x.n)
     : [];
-
+  const [titleMain, ...titleRest] = (next?.title ?? "").split("—");
   const dateLabel = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" });
 
   return (
@@ -79,20 +72,14 @@ export default async function TodayPage() {
             )}
           </div>
           <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${phases.length || 1}, minmax(0, 1fr))` }}>
-            {phases.map((p) => {
-              const isCur = currentPhase?.id === p.id;
-              return (
-                <div
-                  key={p.id}
-                  className={`h-2 rounded ${p.completed_on ? "bg-ink" : isCur ? "bg-ink/60" : "bg-black/20"}`}
-                />
-              );
-            })}
+            {phases.map((p) => (
+              <div
+                key={p.id}
+                className={`h-2 rounded ${p.completed_on ? "bg-ink" : currentPhase?.id === p.id ? "bg-ink/60" : "bg-black/20"}`}
+              />
+            ))}
           </div>
-          <div
-            className="grid gap-1.5 text-xs text-black/70"
-            style={{ gridTemplateColumns: `repeat(${phases.length || 1}, minmax(0, 1fr))` }}
-          >
+          <div className="grid gap-1.5 text-xs text-black/70" style={{ gridTemplateColumns: `repeat(${phases.length || 1}, minmax(0, 1fr))` }}>
             {phases.map((p) => (
               <div key={p.id} className={currentPhase?.id === p.id ? "font-semibold text-ink" : ""}>
                 {p.position} · {p.name.split(" ")[0]}
@@ -109,12 +96,8 @@ export default async function TodayPage() {
             {next.est_duration_min && <div className="text-[13px] font-medium">~{next.est_duration_min} min</div>}
           </div>
           <div className="flex flex-col gap-0.5">
-            <div className="font-display text-[28px] font-bold leading-tight">
-              {next.title.split("—")[0].trim()}
-            </div>
-            {next.title.includes("—") && (
-              <div className="text-base font-medium">{next.title.split("—").slice(1).join("—").trim()}</div>
-            )}
+            <div className="font-display text-[28px] font-bold leading-tight">{titleMain.trim()}</div>
+            {titleRest.length > 0 && <div className="text-base font-medium">{titleRest.join("—").trim()}</div>}
           </div>
           <div className="flex flex-wrap gap-1.5">
             {blockCounts.map(({ b, n }) => (
@@ -144,7 +127,13 @@ export default async function TodayPage() {
         </section>
       )}
 
-      {pendingMorning && <MorningCheckIn workoutId={pendingMorning.id} title={pendingMorning.title.split("—")[0].trim()} />}
+      {pendingMorning && (
+        <MorningCheckIn
+          key={pendingMorning.id}
+          title={pendingMorning.title.split("—")[0].trim()}
+          onPick={(v) => actions.saveMorning(pendingMorning.id, v)}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-2.5">
         <section className="flex flex-col gap-1.5 rounded-[22px] bg-blue p-4 text-ink">
@@ -163,5 +152,38 @@ export default async function TodayPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+function MorningCheckIn({ title, onPick }: { title: string; onPick: (v: number) => void }) {
+  const [picked, setPicked] = useState<number | null>(null);
+  return (
+    <section className="flex flex-col gap-3 rounded-[22px] border border-line bg-card p-4">
+      <div className="flex items-center gap-3">
+        <MoonIcon className="text-blue" />
+        <div className="flex flex-col">
+          <h2 className="text-[15px] font-semibold">Morning check-in</h2>
+          <p className="text-xs text-muted">Groin pain this morning, after {title}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-6 gap-1.5">
+        {Array.from({ length: 11 }, (_, v) => (
+          <button
+            key={v}
+            type="button"
+            aria-label={`Pain ${v}`}
+            onClick={() => {
+              setPicked(v);
+              onPick(v);
+            }}
+            className={`min-h-11 rounded-xl border text-[15px] font-semibold ${
+              picked === v ? "border-white bg-white text-ink" : "border-line bg-card2 text-white"
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }

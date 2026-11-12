@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
-import type { Phase, Reflection, Workout, WorkoutExercise } from "@/lib/types";
-import { finishWorkout, saveSet, saveSqueeze, setExerciseDone, startWorkout } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import type { Phase, Reflection, WorkoutExercise } from "@/lib/types";
+import { useData, type WorkoutFull } from "@/components/DataProvider";
+import { IntervalTimer } from "@/components/IntervalTimer";
 import { AlertIcon, BackIcon, CheckIcon } from "@/components/Icons";
 
 const BLOCK_LABEL: Record<string, string> = {
@@ -27,40 +29,26 @@ function fmt(sec: number) {
 function rx(it: WorkoutExercise) {
   const parts: string[] = [];
   if (it.sets && it.reps) parts.push(`${it.sets} × ${it.reps}`);
-  else if (it.sets && it.duration_s) parts.push(it.duration_s >= 120 ? `${Math.round(it.duration_s / 60)} min` : `${it.sets} × ${it.duration_s} s`);
+  else if (it.sets && it.duration_s)
+    parts.push(it.duration_s >= 120 ? `${Math.round(it.duration_s / 60)} min` : `${it.sets} × ${it.duration_s} s`);
   else if (it.reps) parts.push(it.reps);
   if (it.intensity) parts.push(it.intensity);
   return parts.join(" · ");
 }
 
-export function SessionClient({
-  workout,
-  phase,
-  reflection,
-  items,
-}: {
-  workout: Workout;
-  phase: Phase | null;
-  reflection: Reflection | null;
-  items: WorkoutExercise[];
-}) {
+export function SessionClient({ workout, phase }: { workout: WorkoutFull; phase: Phase | null }) {
+  const router = useRouter();
+  const { actions } = useData();
+  const items = workout.items;
   const readOnly = workout.status === "done";
-  const [done, setDone] = useState<Record<string, boolean>>(
-    Object.fromEntries(items.map((i) => [i.id, !!i.completed_at])),
-  );
-  const [open, setOpen] = useState<string | null>(
-    readOnly ? null : (items.find((i) => !i.completed_at)?.id ?? null),
-  );
-  const [startedAt] = useState<number>(() =>
-    workout.started_at ? new Date(workout.started_at).getTime() : Date.now(),
-  );
+  const [open, setOpen] = useState<string | null>(readOnly ? null : (items.find((i) => !i.completed_at)?.id ?? null));
   const [now, setNow] = useState(Date.now());
   const [restEnd, setRestEnd] = useState<number | null>(null);
-  const [finishing, startFinish] = useTransition();
+  const [finishing, setFinishing] = useState(false);
 
   useEffect(() => {
-    if (!readOnly && !workout.started_at) startWorkout(workout.id);
-  }, [readOnly, workout.id, workout.started_at]);
+    if (!readOnly && !workout.started_at) actions.startWorkout(workout.id);
+  }, [readOnly, workout.id, workout.started_at, actions]);
 
   useEffect(() => {
     if (readOnly) return;
@@ -71,27 +59,36 @@ export function SessionClient({
   useEffect(() => {
     if (restEnd && now >= restEnd) {
       setRestEnd(null);
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate?.([200, 100, 200]);
+      try {
+        navigator.vibrate?.([200, 100, 200]);
+      } catch {}
     }
   }, [now, restEnd]);
 
   const blocks = useMemo(
-    () =>
-      BLOCK_ORDER.map((b) => ({ b, list: items.filter((i) => i.block === b) })).filter((x) => x.list.length),
+    () => BLOCK_ORDER.map((b) => ({ b, list: items.filter((i) => i.block === b) })).filter((x) => x.list.length),
     [items],
   );
   const total = items.length;
-  const doneCount = Object.values(done).filter(Boolean).length;
+  const doneCount = items.filter((i) => i.completed_at).length;
+  const startedAt = workout.started_at ? new Date(workout.started_at).getTime() : now;
   const [titleMain, ...titleRest] = workout.title.split("—");
 
-  const toggle = (id: string) => {
-    const val = !done[id];
-    setDone((d) => ({ ...d, [id]: val }));
-    setExerciseDone(id, val);
+  const setDone = (it: WorkoutExercise, val: boolean) => {
+    actions.setExerciseDone(workout.id, it.id, val);
     if (val) {
-      const idx = items.findIndex((i) => i.id === id);
-      const nextOpen = items.slice(idx + 1).find((i) => !done[i.id]);
+      const idx = items.findIndex((i) => i.id === it.id);
+      const nextOpen = items.slice(idx + 1).find((i) => !i.completed_at);
       setOpen(nextOpen?.id ?? null);
+    }
+  };
+
+  const finish = async () => {
+    setFinishing(true);
+    try {
+      await actions.finishWorkout(workout.id);
+    } finally {
+      router.push(`/session/${workout.id}/reflect`);
     }
   };
 
@@ -145,12 +142,12 @@ export function SessionClient({
               <ExerciseCard
                 key={it.id}
                 it={it}
-                done={!!done[it.id]}
                 open={open === it.id}
                 readOnly={readOnly}
-                reflection={reflection}
+                reflection={workout.reflection}
                 workoutId={workout.id}
-                onToggle={() => toggle(it.id)}
+                onToggle={() => setDone(it, !it.completed_at)}
+                onAutoDone={() => !it.completed_at && setDone(it, true)}
                 onOpen={() => setOpen((o) => (o === it.id ? null : it.id))}
                 onSetSaved={() => it.rest_s && setRestEnd(Date.now() + it.rest_s * 1000)}
               />
@@ -160,8 +157,8 @@ export function SessionClient({
         {workout.notes && <p className="text-[13px] text-muted">{workout.notes}</p>}
       </div>
 
-      {!readOnly ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-ink pb-safe">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-ink pb-safe">
+        {!readOnly ? (
           <div className="mx-auto flex max-w-md items-center gap-3 px-5 pt-3">
             <button
               type="button"
@@ -176,55 +173,58 @@ export function SessionClient({
             <button
               type="button"
               disabled={finishing}
-              onClick={() => startFinish(() => finishWorkout(workout.id))}
+              onClick={finish}
               className="min-h-13 flex-1 rounded-full bg-white py-3.5 text-base font-semibold text-ink disabled:opacity-60"
             >
               {finishing ? "Saving…" : "Finish → Reflect"}
             </button>
           </div>
-        </div>
-      ) : (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-ink pb-safe">
+        ) : (
           <div className="mx-auto max-w-md px-5 pt-3">
             <Link
               href={`/session/${workout.id}/reflect`}
               className="flex min-h-13 items-center justify-center rounded-full bg-white py-3.5 text-base font-semibold text-ink"
             >
-              {reflection?.pain_during != null ? "Edit reflection" : "Add reflection"}
+              {workout.reflection?.pain_during != null ? "Edit reflection" : "Add reflection"}
             </Link>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </main>
   );
 }
 
 function ExerciseCard({
   it,
-  done,
   open,
   readOnly,
   reflection,
   workoutId,
   onToggle,
+  onAutoDone,
   onOpen,
   onSetSaved,
 }: {
   it: WorkoutExercise;
-  done: boolean;
   open: boolean;
   readOnly: boolean;
   reflection: Reflection | null;
   workoutId: string;
   onToggle: () => void;
+  onAutoDone: () => void;
   onOpen: () => void;
   onSetSaved: () => void;
 }) {
+  const { actions } = useData();
+  const done = !!it.completed_at;
   const isRehab = it.block === "rehab";
   const timeBased = !it.reps && !!it.duration_s;
-  const setCount = Math.max(it.sets ?? 1, it.set_logs.length);
+  const perSide = timeBased && /side/i.test(`${it.notes ?? ""} ${it.reps ?? ""}`);
+  const sets = it.sets ?? 1;
+  const setCount = Math.max(sets, it.set_logs.length);
   const logs = Object.fromEntries(it.set_logs.map((s) => [s.set_number, s]));
-  const hasLogs = it.set_logs.length > 0;
+  const loggedTimed = it.set_logs.filter((s) => s.duration_s != null).length;
+  const restForTimer = it.rest_s ?? (sets > 1 ? 30 : 0);
 
   return (
     <div className="flex flex-col rounded-2xl border border-line bg-card">
@@ -250,7 +250,8 @@ function ExerciseCard({
           <span className="text-[15px] font-medium">{it.exercise.name}</span>
           <span className="text-[13px] text-muted">
             {rx(it)}
-            {hasLogs && !open ? " · logged" : ""}
+            {timeBased && !open && !readOnly ? " · timer" : ""}
+            {it.set_logs.length > 0 && !open ? " · logged" : ""}
           </span>
         </button>
         {isRehab && <span className="rounded-full bg-blue px-2 py-1 text-[11px] font-semibold text-ink">REHAB</span>}
@@ -259,30 +260,55 @@ function ExerciseCard({
       {open && (
         <div className="flex flex-col gap-2 border-t border-line p-3">
           {(it.exercise.cues || it.notes) && (
-            <p className="text-[13px] leading-snug text-muted">
-              {[it.exercise.cues, it.notes].filter(Boolean).join(" · ")}
-            </p>
+            <p className="text-[13px] leading-snug text-muted">{[it.exercise.cues, it.notes].filter(Boolean).join(" · ")}</p>
           )}
+
+          {timeBased && !readOnly && (
+            <IntervalTimer
+              sets={sets}
+              work={it.duration_s!}
+              rest={restForTimer}
+              perSide={perSide}
+              loggedSets={loggedTimed}
+              onSetDone={(n, seconds) =>
+                actions
+                  .saveSet(workoutId, it.id, n, {
+                    durationS: String(seconds),
+                    pain: logs[n]?.pain?.toString() ?? "",
+                  })
+                  .catch(() => {})
+              }
+              onAllDone={onAutoDone}
+            />
+          )}
+
           <div
             className={`grid gap-2 text-[11px] uppercase tracking-wide text-muted ${
               timeBased ? "grid-cols-[36px_1fr_1fr]" : "grid-cols-[36px_1fr_1fr_1fr]"
             }`}
           >
             <div>Set</div>
-            {timeBased ? <div>Sec</div> : <><div>kg</div><div>Reps</div></>}
+            {timeBased ? (
+              <div>Sec{perSide ? " / side" : ""}</div>
+            ) : (
+              <>
+                <div>kg</div>
+                <div>Reps</div>
+              </>
+            )}
             <div>Pain</div>
           </div>
           {Array.from({ length: setCount }, (_, i) => i + 1).map((n) => (
             <SetRow
-              key={n}
+              key={`${n}-${logs[n]?.duration_s ?? ""}`}
               n={n}
               timeBased={timeBased}
               readOnly={readOnly}
               initial={logs[n]}
               placeholder={{ reps: it.reps ?? "", sec: it.duration_s ? String(it.duration_s) : "" }}
               onSave={async (v) => {
-                await saveSet({ workoutExerciseId: it.id, setNumber: n, ...v });
-                if (v.reps || v.durationS) onSetSaved();
+                await actions.saveSet(workoutId, it.id, n, v);
+                if (v.reps || (!timeBased && v.durationS)) onSetSaved();
               }}
             />
           ))}
@@ -318,18 +344,17 @@ function SetRow({
     pain: initial?.pain?.toString() ?? "",
   });
   const [saved, setSaved] = useState(JSON.stringify(v));
-  const [state, setState] = useState<"idle" | "saving" | "error">("idle");
+  const [error, setError] = useState(false);
 
   const commit = async () => {
     const s = JSON.stringify(v);
     if (s === saved) return;
-    setState("saving");
     try {
       await onSave(v);
       setSaved(s);
-      setState("idle");
+      setError(false);
     } catch {
-      setState("error");
+      setError(true);
     }
   };
 
@@ -352,10 +377,8 @@ function SetRow({
   );
 
   return (
-    <div
-      className={`grid items-center gap-2 ${timeBased ? "grid-cols-[36px_1fr_1fr]" : "grid-cols-[36px_1fr_1fr_1fr]"}`}
-    >
-      <div className={`text-sm ${state === "error" ? "text-pink" : "text-muted"}`}>{state === "error" ? "!" : n}</div>
+    <div className={`grid items-center gap-2 ${timeBased ? "grid-cols-[36px_1fr_1fr]" : "grid-cols-[36px_1fr_1fr_1fr]"}`}>
+      <div className={`text-sm ${error ? "text-pink" : "text-muted"}`}>{error ? "!" : n}</div>
       {timeBased ? (
         field("durationS", "Seconds", placeholder.sec || "sec", "numeric")
       ) : (
@@ -378,38 +401,25 @@ function SqueezeTest({
   reflection: Reflection | null;
   readOnly: boolean;
 }) {
+  const { actions } = useData();
   const [effort, setEffort] = useState(reflection?.squeeze_effort?.toString() ?? "");
   const [pain, setPain] = useState(reflection?.squeeze_pain?.toString() ?? "");
   const commit = () => {
-    if (effort || pain) saveSqueeze(workoutId, effort || null, pain || null);
+    if (effort || pain) actions.saveSqueeze(workoutId, effort, pain);
   };
+  const cls =
+    "min-h-11 rounded-[10px] border border-black/20 bg-white/40 px-2.5 text-[15px] text-ink outline-none placeholder:text-black/50";
   return (
     <div className="mt-1 flex flex-col gap-2 rounded-xl bg-blue p-3 text-ink">
       <div className="text-[13px] font-semibold">Squeeze test · 3 s hard</div>
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1 text-xs font-medium">
           Effort 0–10
-          <input
-            inputMode="numeric"
-            value={effort}
-            disabled={readOnly}
-            onChange={(e) => setEffort(e.target.value)}
-            onBlur={commit}
-            placeholder="e.g. 8"
-            className="min-h-11 rounded-[10px] border border-black/20 bg-white/40 px-2.5 text-[15px] text-ink outline-none placeholder:text-black/50"
-          />
+          <input inputMode="numeric" value={effort} disabled={readOnly} onChange={(e) => setEffort(e.target.value)} onBlur={commit} placeholder="e.g. 8" className={cls} />
         </label>
         <label className="flex flex-col gap-1 text-xs font-medium">
           Pain 0–10
-          <input
-            inputMode="numeric"
-            value={pain}
-            disabled={readOnly}
-            onChange={(e) => setPain(e.target.value)}
-            onBlur={commit}
-            placeholder="e.g. 2"
-            className="min-h-11 rounded-[10px] border border-black/20 bg-white/40 px-2.5 text-[15px] text-ink outline-none placeholder:text-black/50"
-          />
+          <input inputMode="numeric" value={pain} disabled={readOnly} onChange={(e) => setPain(e.target.value)} onBlur={commit} placeholder="e.g. 2" className={cls} />
         </label>
       </div>
     </div>

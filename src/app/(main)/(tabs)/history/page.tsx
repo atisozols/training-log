@@ -1,18 +1,19 @@
-import Link from "next/link";
-import { getActiveProgram, getDoneWorkouts, getNextWorkout, isOwner } from "@/lib/data";
-import { computeBadges, computeXp, painTone, weekStreak } from "@/lib/game";
-import { CheckIcon, ChevronIcon, FlameIcon, LockIcon } from "@/components/Icons";
-import { FavButton } from "@/components/FavButton";
+"use client";
 
-export const dynamic = "force-dynamic";
+import Link from "next/link";
+import { useState } from "react";
+import { Loading, useData } from "@/components/DataProvider";
+import { computeBadges, computeXp, painTone, weekStreak } from "@/lib/game";
+import { CheckIcon, ChevronIcon, FlameIcon, HeartIcon, LockIcon } from "@/components/Icons";
 
 const PHASE_COLOR: Record<number, string> = { 1: "bg-green", 2: "bg-blue", 3: "bg-pink" };
+const WEEK = 7 * 86400000;
 
-export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ fav?: string }> }) {
-  const { fav } = await searchParams;
-  if (!(await isOwner())) return <p className="pt-10 text-muted">Account not activated yet.</p>;
+export default function HistoryPage() {
+  const { ready, activeProgram: program, activePhases: phases, done, nextWorkout: next, actions } = useData();
+  const [favOnly, setFavOnly] = useState(false);
+  if (!ready) return <Loading />;
 
-  const [{ program, phases }, done, next] = await Promise.all([getActiveProgram(), getDoneWorkouts(), getNextWorkout()]);
   const now = new Date();
   const { xp, level, into, pct } = computeXp(done);
   const streak = weekStreak(done, now);
@@ -24,30 +25,26 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
     programCompleted: program?.status === "completed",
   });
 
-  // Road to target: one cell per week from program start to target date
   let weeks: { cls: string; current: boolean }[] = [];
   let weekIdx = 0;
   if (program?.start_date && program?.target_date) {
-    const start = new Date(program.start_date);
-    const end = new Date(program.target_date);
-    const count = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (7 * 86400000)));
-    weekIdx = Math.floor((now.getTime() - start.getTime()) / (7 * 86400000));
+    const start = new Date(program.start_date).getTime();
+    const end = new Date(program.target_date).getTime();
+    const count = Math.max(1, Math.ceil((end - start) / WEEK));
+    weekIdx = Math.floor((now.getTime() - start) / WEEK);
     weeks = Array.from({ length: count }, (_, i) => {
-      const wStart = start.getTime() + i * 7 * 86400000;
+      const ws = start + i * WEEK;
       const inWeek = done.filter((w) => {
         const t = w.completed_at ? new Date(w.completed_at).getTime() : 0;
-        return t >= wStart && t < wStart + 7 * 86400000;
+        return t >= ws && t < ws + WEEK;
       });
       const pos = inWeek.length ? Math.max(...inWeek.map((w) => phasePos[w.phase_id ?? ""] ?? 1)) : 0;
-      return { cls: pos ? PHASE_COLOR[pos] ?? "bg-green" : "bg-line", current: i === weekIdx };
+      return { cls: pos ? (PHASE_COLOR[pos] ?? "bg-green") : "bg-line", current: i === weekIdx };
     });
   }
 
-  const chart = done
-    .filter((w) => w.reflection?.pain_during != null)
-    .slice(0, 10)
-    .reverse();
-  const list = fav ? done.filter((w) => w.is_favorite) : done;
+  const chart = done.filter((w) => w.reflection?.pain_during != null).slice(0, 10).reverse();
+  const list = favOnly ? done.filter((w) => w.is_favorite) : done;
 
   return (
     <div className="flex flex-col gap-3.5">
@@ -62,13 +59,9 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
 
       {program && weeks.length > 0 && (
         <section className="flex flex-col gap-3 rounded-3xl border border-line bg-card p-4">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-[15px] font-semibold">
-              Road to{" "}
-              {new Date(program.target_date!).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
-            </h2>
-            <div className="text-xs text-muted">{program.goal ? "Copenhagen, pain-free" : ""}</div>
-          </div>
+          <h2 className="text-[15px] font-semibold">
+            Road to {new Date(program.target_date!).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
+          </h2>
           <div className="grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
             {weeks.map((w, i) => (
               <div key={i} className={`h-7 rounded ${w.cls} ${w.current ? "outline-2 outline-offset-1 outline-white" : ""}`} />
@@ -125,18 +118,15 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
         ) : (
           <>
             <div className="relative flex h-32 items-end gap-2 border-b border-line pb-1">
-              <div className="absolute inset-x-0 border-t border-dashed border-[#5c5c5c]" style={{ bottom: `${(3 / 10) * 120 + 4}px` }} />
+              <div className="absolute inset-x-0 border-t border-dashed border-[#5c5c5c]" style={{ bottom: `${0.3 * 120 + 4}px` }} />
               {chart.map((w) => (
                 <div key={w.id} className="flex h-[120px] flex-1 items-end justify-center gap-0.5">
-                  <div
-                    className="w-2.5 rounded-t-[3px] bg-yellow"
-                    style={{ height: `${Math.max(2, (w.reflection!.pain_during! / 10) * 120)}px` }}
-                    title={`During: ${w.reflection!.pain_during}`}
-                  />
+                  <div className="w-2.5 rounded-t-[3px] bg-yellow" style={{ height: `${Math.max(2, (w.reflection!.pain_during! / 10) * 120)}px` }} />
                   <div
                     className="w-2.5 rounded-t-[3px] bg-blue"
-                    style={{ height: `${w.reflection!.pain_next_morning == null ? 0 : Math.max(2, (w.reflection!.pain_next_morning / 10) * 120)}px` }}
-                    title={`Next morning: ${w.reflection!.pain_next_morning ?? "–"}`}
+                    style={{
+                      height: `${w.reflection!.pain_next_morning == null ? 0 : Math.max(2, (w.reflection!.pain_next_morning / 10) * 120)}px`,
+                    }}
                   />
                 </div>
               ))}
@@ -154,18 +144,17 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
         <div className="flex items-center justify-between">
           <h2 className="text-[15px] font-semibold">Workouts</h2>
           <div className="flex rounded-xl border border-line bg-card p-[3px]">
-            <Link
-              href="/history"
-              className={`flex min-h-9 items-center rounded-[9px] px-3 text-[13px] font-medium ${!fav ? "bg-white text-ink" : "text-muted"}`}
-            >
-              All
-            </Link>
-            <Link
-              href="/history?fav=1"
-              className={`flex min-h-9 items-center rounded-[9px] px-3 text-[13px] font-medium ${fav ? "bg-white text-ink" : "text-muted"}`}
-            >
-              Favorites
-            </Link>
+            {[false, true].map((f) => (
+              <button
+                key={String(f)}
+                type="button"
+                onClick={() => setFavOnly(f)}
+                aria-pressed={favOnly === f}
+                className={`min-h-9 rounded-[9px] px-3 text-[13px] font-medium ${favOnly === f ? "bg-white text-ink" : "text-muted"}`}
+              >
+                {f ? "Favorites" : "All"}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -181,7 +170,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
 
         {list.length === 0 && (
           <p className="rounded-2xl border border-line bg-card p-4 text-sm text-muted">
-            {fav ? "No favorites yet. Tap the heart on a workout you liked." : "No finished workouts yet."}
+            {favOnly ? "No favorites yet. Tap the heart on a workout you liked." : "No finished workouts yet."}
           </p>
         )}
 
@@ -193,7 +182,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
             w.started_at && w.completed_at
               ? `${Math.round((new Date(w.completed_at).getTime() - new Date(w.started_at).getTime()) / 60000)} min`
               : null,
-            w.rating ? `${"★".repeat(w.rating)}` : null,
+            w.rating ? "★".repeat(w.rating) : null,
           ]
             .filter(Boolean)
             .join(" · ");
@@ -202,9 +191,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
               <Link href={`/session/${w.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                 <div className="flex min-w-[38px] flex-col items-center">
                   <span className="font-display text-lg font-semibold">{d?.getDate() ?? "–"}</span>
-                  <span className="text-[11px] uppercase text-muted">
-                    {d?.toLocaleDateString("en-GB", { month: "short" }) ?? ""}
-                  </span>
+                  <span className="text-[11px] uppercase text-muted">{d?.toLocaleDateString("en-GB", { month: "short" }) ?? ""}</span>
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate text-[15px] font-medium">{w.title}</span>
@@ -214,7 +201,15 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
               <span className={`rounded-full px-2 py-1 text-xs font-semibold ${painTone(r?.pain_during)}`}>
                 {r?.pain_during ?? "–"}/10
               </span>
-              <FavButton id={w.id} value={w.is_favorite} title={w.title} />
+              <button
+                type="button"
+                onClick={() => actions.toggleFavorite(w.id)}
+                aria-label={w.is_favorite ? `Remove ${w.title} from favorites` : `Favorite ${w.title}`}
+                aria-pressed={w.is_favorite}
+                className={`flex h-11 w-11 shrink-0 items-center justify-center ${w.is_favorite ? "text-pink" : "text-muted"}`}
+              >
+                <HeartIcon filled={w.is_favorite} />
+              </button>
             </div>
           );
         })}

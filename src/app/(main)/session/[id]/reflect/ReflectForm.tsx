@@ -1,27 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useFormStatus } from "react-dom";
 import type { Reflection, Workout } from "@/lib/types";
-import { saveReflection } from "@/app/actions";
+import { useData } from "@/components/DataProvider";
 import { BackIcon, HeartIcon, MoonIcon, StarIcon } from "@/components/Icons";
 
 const tone = (v: number) => (v <= 3 ? "#6BD66B" : v <= 5 ? "#EDE65B" : "#E57FB8");
 const label = (v: number) => (v <= 3 ? "all good" : v <= 5 ? "hold progression" : "step back");
-
-function SaveButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="min-h-13 rounded-full bg-white py-3.5 text-base font-semibold text-ink disabled:opacity-60"
-    >
-      {pending ? "Saving…" : "Save reflection"}
-    </button>
-  );
-}
 
 export function ReflectForm({
   workout,
@@ -43,6 +30,34 @@ export function ReflectForm({
   const [energy, setEnergy] = useState<number>(reflection?.energy ?? 3);
   const [stars, setStars] = useState<number>(workout.rating ?? 0);
   const [fav, setFav] = useState<boolean>(workout.is_favorite);
+  const [journal, setJournal] = useState<string>(reflection?.journal ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { actions } = useData();
+  const router = useRouter();
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await actions.saveReflection(
+        workout.id,
+        {
+          pain_during: pain,
+          pain_during_where: where.length ? where.join(", ") : null,
+          energy,
+          journal_prompt: prompt,
+          journal: journal.trim() || null,
+        },
+        { rating: stars || null, is_favorite: fav },
+      );
+      router.push("/history");
+    } catch {
+      setError("Couldn't save. Check your connection and try again.");
+      setSaving(false);
+    }
+  };
 
   const uniqueNames = Array.from(new Set(exerciseNames.filter((n) => !/^bike/i.test(n))));
   const toggleWhere = (n: string) =>
@@ -50,17 +65,7 @@ export function ReflectForm({
 
   return (
     <main className="mx-auto max-w-md px-5 pb-safe pt-safe">
-      <form action={saveReflection} className="flex flex-col gap-3.5 pb-8">
-        <input type="hidden" name="workout_id" value={workout.id} />
-        <input type="hidden" name="pain_during" value={pain} />
-        <input type="hidden" name="energy" value={energy} />
-        <input type="hidden" name="rating" value={stars || ""} />
-        <input type="hidden" name="favorite" value={fav ? "true" : "false"} />
-        <input type="hidden" name="journal_prompt" value={prompt} />
-        {where.map((w) => (
-          <input key={w} type="hidden" name="where" value={w} />
-        ))}
-
+      <form onSubmit={onSubmit} className="flex flex-col gap-3.5 pb-8">
         <div className="flex items-center justify-between pt-2">
           <Link
             href={`/session/${workout.id}`}
@@ -189,9 +194,9 @@ export function ReflectForm({
           </label>
           <textarea
             id="journal"
-            name="journal"
             rows={4}
-            defaultValue={reflection?.journal ?? ""}
+            value={journal}
+            onChange={(e) => setJournal(e.target.value)}
             placeholder="A few honest lines…"
             className="w-full resize-y rounded-xl border border-line bg-card2 px-3 py-2.5 text-[15px] text-white outline-none placeholder:text-[#808080] focus:border-white"
           />
@@ -202,7 +207,14 @@ export function ReflectForm({
           <span>Tomorrow morning, log your next-morning pain on Today.</span>
         </div>
 
-        <SaveButton />
+        {error && <p className="rounded-2xl bg-pink px-4 py-3 text-sm font-medium text-ink">{error}</p>}
+        <button
+          type="submit"
+          disabled={saving}
+          className="min-h-13 rounded-full bg-white py-3.5 text-base font-semibold text-ink disabled:opacity-60"
+        >
+          {saving ? "Saving…" : "Save reflection"}
+        </button>
       </form>
     </main>
   );

@@ -1,4 +1,4 @@
-import type { Reflection, Workout } from "./types";
+import type { Reflection, Workout, WorkoutExercise } from "./types";
 
 export const XP = {
   session: 40,
@@ -8,7 +8,7 @@ export const XP = {
 };
 export const XP_PER_LEVEL = 200;
 
-export type DoneWorkout = Workout & { reflection: Reflection | null; exerciseNames: string[] };
+export type DoneWorkout = Workout & { reflection: Reflection | null; items: WorkoutExercise[] };
 
 export function isGreen(r: Reflection | null) {
   return (
@@ -79,7 +79,7 @@ export function computeBadges(opts: {
 }): Badge[] {
   const { done, streak, phase1Cleared, programCompleted } = opts;
   const did = (needle: string) =>
-    done.some((w) => w.exerciseNames.some((n) => n.toLowerCase().includes(needle)));
+    done.some((w) => w.items.some((i) => i.exercise?.name.toLowerCase().includes(needle)));
   return [
     { key: "first", name: "First session", earned: done.length >= 1, hint: "Finish a session" },
     {

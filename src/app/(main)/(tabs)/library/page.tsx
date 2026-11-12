@@ -1,7 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
-import type { Exercise } from "@/lib/types";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { Loading, useData } from "@/components/DataProvider";
 
 const GROUPS = [
   { key: "allowed", title: "Allowed", cls: "bg-green" },
@@ -9,10 +8,9 @@ const GROUPS = [
   { key: "avoid", title: "Avoid for now", cls: "bg-pink" },
 ];
 
-export default async function LibraryPage() {
-  const supabase = await createClient();
-  const { data } = await supabase.from("exercises").select("*").order("name");
-  const all = (data ?? []) as Exercise[];
+export default function LibraryPage() {
+  const { ready, exercises: all } = useData();
+  if (!ready) return <Loading />;
 
   return (
     <div className="flex flex-col gap-5">
