@@ -46,15 +46,14 @@ export function SessionClient({ workout, phase }: { workout: WorkoutFull; phase:
   const [restEnd, setRestEnd] = useState<number | null>(null);
   const [finishing, setFinishing] = useState(false);
 
-  useEffect(() => {
-    if (!readOnly && !workout.started_at) actions.startWorkout(workout.id);
-  }, [readOnly, workout.id, workout.started_at, actions]);
+  const started = !!workout.started_at;
+  const nothingLogged = items.every((i) => !i.completed_at && i.set_logs.length === 0);
 
   useEffect(() => {
-    if (readOnly) return;
+    if (readOnly || !started) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, [readOnly]);
+  }, [readOnly, started]);
 
   useEffect(() => {
     if (restEnd && now >= restEnd) {
@@ -108,11 +107,23 @@ export function SessionClient({ workout, phase }: { workout: WorkoutFull; phase:
               ? workout.completed_at
                 ? new Date(workout.completed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
                 : "Done"
-              : fmt((now - startedAt) / 1000)}
+              : started
+                ? fmt((now - startedAt) / 1000)
+                : "Not started"}
           </div>
-          <div className="min-w-11 text-right text-[13px] text-muted">
-            {doneCount}/{total}
-          </div>
+          {!readOnly && started && nothingLogged ? (
+            <button
+              type="button"
+              onClick={() => actions.cancelStart(workout.id)}
+              className="min-h-11 rounded-full border border-line px-3 text-[13px] text-muted"
+            >
+              Cancel start
+            </button>
+          ) : (
+            <div className="min-w-11 text-right text-[13px] text-muted">
+              {doneCount}/{total}
+            </div>
+          )}
         </div>
         <div className="flex flex-col gap-0.5">
           <div className="text-[13px] text-muted">
@@ -158,7 +169,17 @@ export function SessionClient({ workout, phase }: { workout: WorkoutFull; phase:
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-ink pb-safe">
-        {!readOnly ? (
+        {!readOnly && !started ? (
+          <div className="mx-auto max-w-md px-5 pt-3">
+            <button
+              type="button"
+              onClick={() => actions.startWorkout(workout.id)}
+              className="min-h-13 w-full rounded-full bg-yellow py-3.5 text-base font-semibold text-ink"
+            >
+              Start workout
+            </button>
+          </div>
+        ) : !readOnly ? (
           <div className="mx-auto flex max-w-md items-center gap-3 px-5 pt-3">
             <button
               type="button"

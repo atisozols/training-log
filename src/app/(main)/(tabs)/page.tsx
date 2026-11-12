@@ -117,7 +117,7 @@ export default function TodayPage() {
             className="flex min-h-13 items-center justify-center gap-2 rounded-full bg-ink py-3.5 text-base font-semibold text-white"
           >
             <PlayIcon size={18} />
-            {next.started_at ? "Continue session" : "Start session"}
+            {next.started_at ? "Continue session" : "Open session"}
           </Link>
         </section>
       ) : (
