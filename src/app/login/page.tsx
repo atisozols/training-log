@@ -9,7 +9,7 @@ export default async function LoginPage({
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-end gap-8 px-5 pb-safe pt-safe">
       <div className="flex flex-col gap-3">
-        <div className="text-sm uppercase tracking-wider text-muted">Training Log</div>
+        <div className="text-sm uppercase tracking-wider text-muted">Copenhagen</div>
         <h1 className="font-display text-4xl font-bold uppercase leading-[1.05]">
           Train smart.
           <br />

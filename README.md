@@ -1,4 +1,4 @@
-# Training Log
+# Copenhagen
 
 A personal training-log PWA: Claude writes each session into Supabase, you log it in the app, reflect, and Claude writes the next one from your history.
 

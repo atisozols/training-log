@@ -3,10 +3,10 @@ import "./globals.css";
 import { RegisterSW } from "@/components/RegisterSW";
 
 export const metadata: Metadata = {
-  title: "Training Log",
-  description: "Session-by-session training log",
-  applicationName: "Training Log",
-  appleWebApp: { capable: true, title: "Training", statusBarStyle: "black-translucent" },
+  title: "Copenhagen",
+  description: "Rehab and training log, one session at a time",
+  applicationName: "Copenhagen",
+  appleWebApp: { capable: true, title: "Copenhagen", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
 };
 

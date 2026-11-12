@@ -1,52 +1,25 @@
+// Copenhagen app mark: black eight-point star on a full-bleed yellow tile.
+// Full-bleed so iOS/Android can apply their own corner mask.
+function starPoints(size: number, outer: number, inner: number) {
+  const c = size / 2;
+  const pts: string[] = [];
+  for (let i = 0; i < 16; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = ((-90 + i * 22.5) * Math.PI) / 180;
+    pts.push(`${(c + r * Math.cos(a)).toFixed(2)},${(c + r * Math.sin(a)).toFixed(2)}`);
+  }
+  return pts.join(" ");
+}
+
 export function Mark({ px, maskable = false }: { px: number; maskable?: boolean }) {
-  const inner = maskable ? px * 0.62 : px * 0.8;
+  // maskable icons keep the star inside the 80% safe zone
+  const outer = px * (maskable ? 0.27 : 0.345);
+  const inner = outer * 0.145;
   return (
-    <div
-      style={{
-        width: px,
-        height: px,
-        background: "#000000",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        style={{
-          width: inner,
-          height: inner,
-          borderRadius: inner * 0.28,
-          background: "#EDE65B",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-        }}
-      >
-        <div
-          style={{
-            fontSize: inner * 0.5,
-            fontWeight: 800,
-            color: "#000000",
-            letterSpacing: -inner * 0.03,
-            display: "flex",
-          }}
-        >
-          TL
-        </div>
-        <div
-          style={{
-            position: "absolute",
-            right: inner * 0.12,
-            top: inner * 0.12,
-            width: inner * 0.14,
-            height: inner * 0.14,
-            borderRadius: 999,
-            background: "#E57FB8",
-            display: "flex",
-          }}
-        />
-      </div>
+    <div style={{ width: px, height: px, background: "#EDE65B", display: "flex" }}>
+      <svg width={px} height={px} viewBox={`0 0 ${px} ${px}`}>
+        <polygon points={starPoints(px, outer, inner)} fill="#000000" />
+      </svg>
     </div>
   );
 }
