@@ -158,6 +158,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [patchWorkout],
   );
 
+  // Logging anything in a planned session that wasn't started starts its clock
+  const ensureStarted = useCallback(
+    (id: string) => {
+      const w = storeRef.current.workouts.find((x) => x.id === id);
+      if (!w || w.started_at || w.status !== "planned") return;
+      const now = new Date().toISOString();
+      patchWorkout(id, (x) => (x.started_at ? x : { ...x, started_at: now }));
+      supabase.from("workouts").update({ started_at: now }).eq("id", id).is("started_at", null).then();
+    },
+    [patchWorkout, supabase],
+  );
+
   const actions = useMemo<Ctx["actions"]>(
     () => ({
       startWorkout(id) {
@@ -170,6 +182,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         supabase.from("workouts").update({ started_at: null }).eq("id", id).eq("status", "planned").then();
       },
       setExerciseDone(workoutId, itemId, done) {
+        ensureStarted(workoutId);
         const at = done ? new Date().toISOString() : null;
         patchWorkout(workoutId, (w) => ({
           ...w,
@@ -178,6 +191,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         supabase.from("workout_exercises").update({ completed_at: at }).eq("id", itemId).then();
       },
       async saveSet(workoutId, itemId, setNumber, v) {
+        ensureStarted(workoutId);
         const row = {
           workout_exercise_id: itemId,
           set_number: setNumber,
@@ -257,7 +271,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         window.location.href = "/login";
       },
     }),
-    [patchReflection, patchWorkout, supabase],
+    [patchReflection, patchWorkout, supabase, ensureStarted],
   );
 
   const value = useMemo<Ctx>(() => {
