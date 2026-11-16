@@ -35,7 +35,7 @@ type Ctx = Store & {
       workoutId: string,
       itemId: string,
       setNumber: number,
-      v: { weightKg?: string; reps?: string; durationS?: string; pain?: string },
+      v: { weightKg?: string; reps?: string; durationS?: string; pain?: string; band?: string },
     ) => Promise<void>;
     saveSqueeze: (workoutId: string, effort: string, pain: string) => void;
     finishWorkout: (id: string) => Promise<void>;
@@ -199,9 +199,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           reps: num(v.reps),
           duration_s: num(v.durationS),
           pain: clamp010(num(v.pain)),
+          band: v.band?.trim() || null,
           logged_at: new Date().toISOString(),
         };
-        const empty = row.weight_kg === null && row.reps === null && row.duration_s === null && row.pain === null;
+        const empty =
+          row.weight_kg === null && row.reps === null && row.duration_s === null && row.pain === null && row.band === null;
         patchWorkout(workoutId, (w) => ({
           ...w,
           items: w.items.map((i) => {

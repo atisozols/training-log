@@ -240,6 +240,7 @@ function ExerciseCard({
   const done = !!it.completed_at;
   const isRehab = it.block === "rehab";
   const timeBased = !it.reps && !!it.duration_s;
+  const loadType = it.exercise.load_type ?? "weight";
   const perSide = timeBased && /side/i.test(`${it.notes ?? ""} ${it.reps ?? ""}`);
   const sets = it.sets ?? 1;
   const setCount = Math.max(sets, it.set_logs.length);
@@ -313,7 +314,7 @@ function ExerciseCard({
               <div>Sec{perSide ? " / side" : ""}</div>
             ) : (
               <>
-                <div>kg</div>
+                <div>{loadType === "band" ? "Band" : loadType === "bodyweight" ? "+kg" : "kg"}</div>
                 <div>Reps</div>
               </>
             )}
@@ -324,6 +325,7 @@ function ExerciseCard({
               key={`${n}-${logs[n]?.duration_s ?? ""}`}
               n={n}
               timeBased={timeBased}
+              loadType={loadType}
               readOnly={readOnly}
               initial={logs[n]}
               placeholder={{ reps: it.reps ?? "", sec: it.duration_s ? String(it.duration_s) : "" }}
@@ -346,6 +348,7 @@ const inputCls =
 function SetRow({
   n,
   timeBased,
+  loadType,
   readOnly,
   initial,
   placeholder,
@@ -353,16 +356,24 @@ function SetRow({
 }: {
   n: number;
   timeBased: boolean;
+  loadType: string;
   readOnly: boolean;
-  initial?: { weight_kg: number | null; reps: number | null; duration_s: number | null; pain: number | null };
+  initial?: {
+    weight_kg: number | null;
+    reps: number | null;
+    duration_s: number | null;
+    pain: number | null;
+    band?: string | null;
+  };
   placeholder: { reps: string; sec: string };
-  onSave: (v: { weightKg: string; reps: string; durationS: string; pain: string }) => Promise<void>;
+  onSave: (v: { weightKg: string; reps: string; durationS: string; pain: string; band: string }) => Promise<void>;
 }) {
   const [v, setV] = useState({
     weightKg: initial?.weight_kg?.toString() ?? "",
     reps: initial?.reps?.toString() ?? "",
     durationS: initial?.duration_s?.toString() ?? "",
     pain: initial?.pain?.toString() ?? "",
+    band: initial?.band ?? "",
   });
   const [saved, setSaved] = useState(JSON.stringify(v));
   const [error, setError] = useState(false);
@@ -379,7 +390,7 @@ function SetRow({
     }
   };
 
-  const field = (key: keyof typeof v, label: string, ph: string, mode: "decimal" | "numeric") => (
+  const field = (key: keyof typeof v, label: string, ph: string, mode: "decimal" | "numeric" | "text") => (
     <label className="flex">
       <span className="sr-only">
         {label} set {n}
@@ -390,7 +401,9 @@ function SetRow({
         value={v[key]}
         placeholder={ph}
         disabled={readOnly}
-        onChange={(e) => setV((o) => ({ ...o, [key]: e.target.value.replace(",", ".") }))}
+        onChange={(e) =>
+          setV((o) => ({ ...o, [key]: mode === "text" ? e.target.value : e.target.value.replace(",", ".") }))
+        }
         onBlur={commit}
         className={inputCls}
       />
@@ -404,7 +417,11 @@ function SetRow({
         field("durationS", "Seconds", placeholder.sec || "sec", "numeric")
       ) : (
         <>
-          {field("weightKg", "Kilograms", "kg", "decimal")}
+          {loadType === "band"
+            ? field("band", "Band", "band", "text")
+            : loadType === "bodyweight"
+              ? field("weightKg", "Added kilograms", "BW", "decimal")
+              : field("weightKg", "Kilograms", "kg", "decimal")}
           {field("reps", "Reps", placeholder.reps.replace(/\/.*/, "") || "reps", "numeric")}
         </>
       )}

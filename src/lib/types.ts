@@ -27,6 +27,7 @@ export type Exercise = {
   cues: string | null;
   status: "allowed" | "avoid" | "progressing" | string;
   status_note: string | null;
+  load_type?: "weight" | "bodyweight" | "band" | "time" | string;
 };
 
 export type SetLog = {
@@ -37,6 +38,7 @@ export type SetLog = {
   weight_kg: number | null;
   duration_s: number | null;
   pain: number | null;
+  band?: string | null;
 };
 
 export type WorkoutExercise = {
