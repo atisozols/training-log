@@ -303,7 +303,7 @@ function ExerciseCard({
         {isRehab && <span className="rounded-full bg-blue px-2 py-1 text-[11px] font-semibold text-ink">REHAB</span>}
       </div>
 
-      <div className="collapse" data-open={open} aria-hidden={!open} inert={!open}>
+      <div className="expander" data-open={open} aria-hidden={!open} inert={!open}>
         <div>
         {mounted && (
         <div className="flex flex-col gap-2 border-t border-line p-3">
