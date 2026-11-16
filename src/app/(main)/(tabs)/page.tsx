@@ -19,6 +19,7 @@ const BLOCK_ORDER = ["warmup", "rehab", "strength", "upper", "conditioning", "co
 export default function TodayPage() {
   const { ready, owner, email, activeProgram: program, activePhases: phases, currentPhase, nextWorkout: next, done, actions } =
     useData();
+  const [checkedId, setCheckedId] = useState<string | null>(null);
 
   if (!ready) return <Loading />;
   if (!owner) {
@@ -37,7 +38,7 @@ export default function TodayPage() {
   const pendingMorning = done.find(
     (w) =>
       w.completed_at &&
-      w.reflection?.pain_next_morning == null &&
+      (w.reflection?.pain_next_morning == null || w.id === checkedId) &&
       new Date(w.completed_at).toDateString() !== now.toDateString(),
   );
   const daysLeft = program?.target_date ? Math.max(0, daysBetween(now, new Date(program.target_date))) : null;
@@ -131,7 +132,10 @@ export default function TodayPage() {
         <MorningCheckIn
           key={pendingMorning.id}
           title={pendingMorning.title.split("—")[0].trim()}
-          onPick={(v) => actions.saveMorning(pendingMorning.id, v)}
+          onPick={(v) => {
+            setCheckedId(pendingMorning.id);
+            actions.saveMorning(pendingMorning.id, v);
+          }}
         />
       )}
 
@@ -163,7 +167,13 @@ function MorningCheckIn({ title, onPick }: { title: string; onPick: (v: number) 
         <MoonIcon className="text-blue" />
         <div className="flex flex-col">
           <h2 className="text-[15px] font-semibold">Morning check-in</h2>
-          <p className="text-xs text-muted">Groin pain this morning, after {title}</p>
+          {picked === null ? (
+            <p className="text-xs text-muted">Groin pain this morning, after {title}</p>
+          ) : (
+            <p key={picked} className="rise text-xs text-green" role="status">
+              Saved: {picked}/10. Tap another number to change it.
+            </p>
+          )}
         </div>
       </div>
       <div className="grid grid-cols-6 gap-1.5">
@@ -171,6 +181,7 @@ function MorningCheckIn({ title, onPick }: { title: string; onPick: (v: number) 
           <button
             key={v}
             type="button"
+            aria-pressed={picked === v}
             aria-label={`Pain ${v}`}
             onClick={() => {
               setPicked(v);

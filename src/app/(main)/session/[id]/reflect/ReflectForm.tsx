@@ -81,18 +81,24 @@ export function ReflectForm({
             aria-pressed={fav}
             className={`flex h-11 w-11 items-center justify-center rounded-2xl border border-line bg-card ${fav ? "text-pink" : "text-white"}`}
           >
-            <HeartIcon filled={fav} />
+            <HeartIcon filled={fav} className="heart" />
           </button>
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="rise flex flex-col gap-1" style={{ ["--i" as string]: 1 }}>
           <div className="text-[13px] text-muted">
             {workout.title.split("—")[0].trim()} done{minutes ? ` · ${minutes} min` : ""}
+            <span
+              className="pop ml-2 inline-block rounded-full bg-green px-2 py-0.5 text-xs font-semibold text-ink"
+              style={{ ["--i" as string]: 3 }}
+            >
+              +40 XP
+            </span>
           </div>
           <h1 className="font-display text-[28px] font-bold">How did it feel?</h1>
         </div>
 
-        <section className="flex flex-col gap-2.5 rounded-[22px] border border-line bg-card p-4">
+        <section className="rise flex flex-col gap-2.5 rounded-[22px] border border-line bg-card p-4" style={{ ["--i" as string]: 2 }}>
           <div className="flex items-baseline justify-between">
             <h2 className="text-[15px] font-semibold">Groin pain during</h2>
             <div className="text-[13px] font-semibold" style={{ color: tone(pain) }}>
@@ -121,7 +127,7 @@ export function ReflectForm({
           <p className="text-xs text-muted">0–3 fine · 4–5 hold progression · 6+ step back</p>
         </section>
 
-        <section className="flex flex-col gap-2.5 rounded-[22px] border border-line bg-card p-4">
+        <section className="rise flex flex-col gap-2.5 rounded-[22px] border border-line bg-card p-4" style={{ ["--i" as string]: 3 }}>
           <h2 className="text-[15px] font-semibold">Where did you feel it?</h2>
           <div className="flex flex-wrap gap-1.5">
             {[...uniqueNames, "Nowhere"].map((n) => {
@@ -143,7 +149,7 @@ export function ReflectForm({
           </div>
         </section>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="rise grid grid-cols-2 gap-2.5" style={{ ["--i" as string]: 4 }}>
           <section className="flex flex-col gap-1 rounded-[22px] bg-blue p-4 text-ink">
             <div className="text-[13px] font-semibold">Squeeze test</div>
             <div className="font-display text-2xl font-bold">
@@ -170,7 +176,7 @@ export function ReflectForm({
           </section>
         </div>
 
-        <section className="flex items-center justify-between rounded-[22px] border border-line bg-card p-4">
+        <section className="rise flex items-center justify-between rounded-[22px] border border-line bg-card p-4" style={{ ["--i" as string]: 5 }}>
           <h2 className="text-[15px] font-semibold">Rate this workout</h2>
           <div className="flex">
             {[1, 2, 3, 4, 5].map((v) => (
@@ -187,7 +193,7 @@ export function ReflectForm({
           </div>
         </section>
 
-        <section className="flex flex-col gap-2.5 rounded-[22px] border border-line bg-card p-4">
+        <section className="rise flex flex-col gap-2.5 rounded-[22px] border border-line bg-card p-4" style={{ ["--i" as string]: 6 }}>
           <div className="text-xs font-semibold uppercase tracking-wider text-pink">Journal</div>
           <label htmlFor="journal" className="text-[15px] font-medium leading-snug">
             {prompt}
@@ -198,7 +204,7 @@ export function ReflectForm({
             value={journal}
             onChange={(e) => setJournal(e.target.value)}
             placeholder="A few honest lines…"
-            className="w-full resize-y rounded-xl border border-line bg-card2 px-3 py-2.5 text-[15px] text-white outline-none placeholder:text-[#808080] focus:border-white"
+            className="w-full resize-y rounded-xl border border-line bg-card2 px-3 py-2.5 text-base text-white outline-none placeholder:text-[#808080] focus:border-white"
           />
         </section>
 

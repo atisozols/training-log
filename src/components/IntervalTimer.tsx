@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ---------- sound + wake lock helpers
 let audioCtx: AudioContext | null = null;
-function ensureAudio() {
+export function ensureAudio() {
   if (typeof window === "undefined") return;
   if (!audioCtx) {
     const AC = window.AudioContext || (window as any).webkitAudioContext;
@@ -12,7 +12,7 @@ function ensureAudio() {
   }
   if (audioCtx?.state === "suspended") audioCtx.resume();
 }
-function beep(freq = 880, ms = 140, vol = 0.3) {
+export function beep(freq = 880, ms = 140, vol = 0.3) {
   if (!audioCtx) return;
   const t = audioCtx.currentTime;
   const o = audioCtx.createOscillator();

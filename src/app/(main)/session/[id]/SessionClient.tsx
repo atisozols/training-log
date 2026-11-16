@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Phase, Reflection, WorkoutExercise } from "@/lib/types";
 import { useData, type WorkoutFull } from "@/components/DataProvider";
-import { IntervalTimer } from "@/components/IntervalTimer";
+import { IntervalTimer, beep, ensureAudio } from "@/components/IntervalTimer";
 import { AlertIcon, BackIcon, CheckIcon } from "@/components/Icons";
 
 const BLOCK_LABEL: Record<string, string> = {
@@ -44,6 +44,7 @@ export function SessionClient({ workout, phase }: { workout: WorkoutFull; phase:
   const [open, setOpen] = useState<string | null>(readOnly ? null : (items.find((i) => !i.completed_at)?.id ?? null));
   const [now, setNow] = useState(Date.now());
   const [restEnd, setRestEnd] = useState<number | null>(null);
+  const [restPulse, setRestPulse] = useState(0);
   const [finishing, setFinishing] = useState(false);
 
   const started = !!workout.started_at;
@@ -58,6 +59,8 @@ export function SessionClient({ workout, phase }: { workout: WorkoutFull; phase:
   useEffect(() => {
     if (restEnd && now >= restEnd) {
       setRestEnd(null);
+      setRestPulse((n) => n + 1);
+      beep(1175, 380, 0.35);
       try {
         navigator.vibrate?.([200, 100, 200]);
       } catch {}
@@ -160,7 +163,11 @@ export function SessionClient({ workout, phase }: { workout: WorkoutFull; phase:
                 onToggle={() => setDone(it, !it.completed_at)}
                 onAutoDone={() => !it.completed_at && setDone(it, true)}
                 onOpen={() => setOpen((o) => (o === it.id ? null : it.id))}
-                onSetSaved={() => it.rest_s && setRestEnd(Date.now() + it.rest_s * 1000)}
+                onSetSaved={() => {
+                  if (!it.rest_s) return;
+                  ensureAudio();
+                  setRestEnd(Date.now() + it.rest_s * 1000);
+                }}
               />
             ))}
           </section>
@@ -183,8 +190,12 @@ export function SessionClient({ workout, phase }: { workout: WorkoutFull; phase:
           <div className="mx-auto flex max-w-md items-center gap-3 px-5 pt-3">
             <button
               type="button"
-              onClick={() => setRestEnd(restEnd ? null : Date.now() + 90_000)}
-              className="flex min-w-[92px] flex-col text-left"
+              onClick={() => {
+                ensureAudio();
+                setRestEnd(restEnd ? null : Date.now() + 90_000);
+              }}
+              key={restPulse}
+              className={`flex min-w-[92px] flex-col text-left ${restPulse ? "nudge" : ""}`}
             >
               <span className="text-[11px] uppercase tracking-wider text-muted">{restEnd ? "Rest" : "Rest timer"}</span>
               <span className="font-display text-[22px] font-semibold tabular-nums text-yellow">
@@ -247,9 +258,22 @@ function ExerciseCard({
   const logs = Object.fromEntries(it.set_logs.map((s) => [s.set_number, s]));
   const loggedTimed = it.set_logs.filter((s) => s.duration_s != null).length;
   const restForTimer = it.rest_s ?? (sets > 1 ? 30 : 0);
+  // keep content mounted after first open so it can animate closed (and a running timer survives collapsing)
+  const [mounted, setMounted] = useState(open);
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    setMounted(true);
+    // bring the newly opened exercise into view once it has expanded
+    const t = setTimeout(() => {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      cardRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
+    }, 240);
+    return () => clearTimeout(t);
+  }, [open]);
 
   return (
-    <div className="flex flex-col rounded-2xl border border-line bg-card">
+    <div ref={cardRef} className="flex scroll-mt-60 scroll-mb-36 flex-col rounded-2xl border border-line bg-card">
       <div className="flex items-center gap-3 px-3 py-2.5">
         <button
           type="button"
@@ -261,7 +285,7 @@ function ExerciseCard({
             done ? "border-green bg-green text-ink" : "border-[#3a3a3a]"
           }`}
         >
-          {done && <CheckIcon size={20} />}
+          {done && <CheckIcon size={20} className="draw" />}
         </button>
         <button
           type="button"
@@ -279,7 +303,9 @@ function ExerciseCard({
         {isRehab && <span className="rounded-full bg-blue px-2 py-1 text-[11px] font-semibold text-ink">REHAB</span>}
       </div>
 
-      {open && (
+      <div className="collapse" data-open={open} aria-hidden={!open} inert={!open}>
+        <div>
+        {mounted && (
         <div className="flex flex-col gap-2 border-t border-line p-3">
           {(it.exercise.cues || it.notes) && (
             <p className="text-[13px] leading-snug text-muted">{[it.exercise.cues, it.notes].filter(Boolean).join(" · ")}</p>
@@ -337,13 +363,15 @@ function ExerciseCard({
           ))}
           {isRehab && <SqueezeTest workoutId={workoutId} reflection={reflection} readOnly={readOnly} />}
         </div>
-      )}
+        )}
+        </div>
+      </div>
     </div>
   );
 }
 
 const inputCls =
-  "w-full min-h-11 rounded-[10px] border border-line bg-card2 px-2.5 text-[15px] text-white outline-none placeholder:text-[#808080] focus:border-white disabled:opacity-70";
+  "w-full min-h-11 rounded-[10px] border border-line bg-card2 px-2.5 text-base text-white outline-none placeholder:text-[#808080] focus:border-white disabled:opacity-70";
 
 function SetRow({
   n,
@@ -446,7 +474,7 @@ function SqueezeTest({
     if (effort || pain) actions.saveSqueeze(workoutId, effort, pain);
   };
   const cls =
-    "min-h-11 rounded-[10px] border border-black/20 bg-white/40 px-2.5 text-[15px] text-ink outline-none placeholder:text-black/50";
+    "min-h-11 rounded-[10px] border border-black/20 bg-white/40 px-2.5 text-base text-ink outline-none placeholder:text-black/50";
   return (
     <div className="mt-1 flex flex-col gap-2 rounded-xl bg-blue p-3 text-ink">
       <div className="text-[13px] font-semibold">Squeeze test · 3 s hard</div>

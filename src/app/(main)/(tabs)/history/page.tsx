@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loading, useData } from "@/components/DataProvider";
 import { computeBadges, computeXp, painTone, weekStreak } from "@/lib/game";
 import { CheckIcon, ChevronIcon, FlameIcon, HeartIcon, LockIcon } from "@/components/Icons";
@@ -12,6 +12,31 @@ const WEEK = 7 * 86400000;
 export default function HistoryPage() {
   const { ready, activeProgram: program, activePhases: phases, done, nextWorkout: next, actions } = useData();
   const [favOnly, setFavOnly] = useState(false);
+  const [fresh, setFresh] = useState<string[]>([]);
+  const earnedKeys = ready
+    ? computeBadges({
+        done,
+        streak: weekStreak(done, new Date()),
+        phase1Cleared: !!phases.find((p) => p.position === 1)?.completed_on,
+        programCompleted: program?.status === "completed",
+      })
+        .filter((b) => b.earned)
+        .map((b) => b.key)
+        .join(",")
+    : "";
+
+  // Badges earned since the last visit get a one-time pop
+  useEffect(() => {
+    if (!earnedKeys) return;
+    const KEY = "copenhagen:badges-seen";
+    try {
+      const seen: string[] = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+      const earned = earnedKeys.split(",");
+      setFresh(earned.filter((k) => !seen.includes(k)));
+      localStorage.setItem(KEY, JSON.stringify(earned));
+    } catch {}
+  }, [earnedKeys]);
+
   if (!ready) return <Loading />;
 
   const now = new Date();
@@ -94,18 +119,27 @@ export default function HistoryPage() {
       </section>
 
       <section className="grid grid-cols-3 gap-2.5">
-        {badges.map((b) => (
-          <div
-            key={b.key}
-            title={b.hint}
-            className={`flex flex-col items-center gap-1.5 rounded-2xl p-3 text-center ${
-              b.earned ? "bg-yellow text-ink" : "border border-line bg-card text-muted"
-            }`}
-          >
-            {b.earned ? <CheckIcon size={20} /> : <LockIcon size={18} />}
-            <div className="text-[11px] font-medium leading-tight">{b.name}</div>
-          </div>
-        ))}
+        {badges.map((b) => {
+          const isNew = fresh.includes(b.key);
+          return (
+            <div
+              key={b.key}
+              title={b.hint}
+              className={`relative flex flex-col items-center gap-1.5 rounded-2xl p-3 text-center ${
+                b.earned ? "bg-yellow text-ink" : "border border-line bg-card text-muted"
+              } ${isNew ? "pop" : ""}`}
+              style={isNew ? { ["--i" as string]: fresh.indexOf(b.key) + 1 } : undefined}
+            >
+              {isNew && (
+                <span className="absolute -top-2 right-2 rounded-full bg-pink px-1.5 py-0.5 text-[10px] font-bold text-ink">
+                  NEW
+                </span>
+              )}
+              {b.earned ? <CheckIcon size={20} className={isNew ? "draw" : ""} /> : <LockIcon size={18} />}
+              <div className="text-[11px] font-medium leading-tight">{b.name}</div>
+            </div>
+          );
+        })}
       </section>
 
       <section className="flex flex-col gap-3 rounded-3xl border border-line bg-card p-4">
@@ -208,7 +242,7 @@ export default function HistoryPage() {
                 aria-pressed={w.is_favorite}
                 className={`flex h-11 w-11 shrink-0 items-center justify-center ${w.is_favorite ? "text-pink" : "text-muted"}`}
               >
-                <HeartIcon filled={w.is_favorite} />
+                <HeartIcon filled={w.is_favorite} className="heart" />
               </button>
             </div>
           );
