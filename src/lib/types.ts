@@ -87,4 +87,6 @@ export type Workout = {
   notes: string | null;
   is_favorite: boolean;
   rating: number | null;
+  gym?: string | null;
 };
+export const GYMS = ["MyFitness", "Ozols"] as const;

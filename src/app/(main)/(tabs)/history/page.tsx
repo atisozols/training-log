@@ -216,6 +216,7 @@ export default function HistoryPage() {
             w.started_at && w.completed_at
               ? `${Math.round((new Date(w.completed_at).getTime() - new Date(w.started_at).getTime()) / 60000)} min`
               : null,
+            w.gym ?? null,
             w.rating ? "★".repeat(w.rating) : null,
           ]
             .filter(Boolean)

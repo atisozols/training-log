@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Phase, Reflection, WorkoutExercise } from "@/lib/types";
+import { GYMS, type Phase, type Reflection, type WorkoutExercise } from "@/lib/types";
 import { useData, type WorkoutFull } from "@/components/DataProvider";
 import { IntervalTimer, beep, ensureAudio } from "@/components/IntervalTimer";
 import { AlertIcon, BackIcon, CheckIcon } from "@/components/Icons";
@@ -136,6 +136,26 @@ export function SessionClient({ workout, phase }: { workout: WorkoutFull; phase:
           <h1 className="font-display text-[26px] font-bold leading-tight">
             {titleRest.length ? titleRest.join("—").trim() : titleMain.trim()}
           </h1>
+        </div>
+        <div className="flex items-center gap-2" role="group" aria-label="Gym">
+          {GYMS.map((g) => {
+            const on = workout.gym === g;
+            return (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={on}
+                disabled={readOnly}
+                onClick={() => actions.setGym(workout.id, on ? null : g)}
+                className={`min-h-9 rounded-full border px-3.5 text-[13px] font-medium ${
+                  on ? "border-white bg-white text-ink" : "border-line text-muted"
+                } disabled:opacity-60`}
+              >
+                {g}
+              </button>
+            );
+          })}
+          {!workout.gym && !readOnly && <span className="text-xs text-muted">Which gym?</span>}
         </div>
         <div className="h-1.5 overflow-hidden rounded bg-line">
           <div className="h-1.5 bg-green transition-all" style={{ width: `${total ? (doneCount / total) * 100 : 0}%` }} />
@@ -450,7 +470,7 @@ function SetRow({
           {loadType === "band"
             ? field("band", "Band", "band", "text")
             : loadType === "stack"
-              ? field("band", "Pin and gym", "e.g. 20", "text")
+              ? field("band", "Pin number", "e.g. 20", "text")
             : loadType === "bodyweight"
               ? field("weightKg", "Added kilograms", "BW", "decimal")
               : field("weightKg", "Kilograms", "kg", "decimal")}

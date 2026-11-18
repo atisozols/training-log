@@ -30,6 +30,7 @@ type Ctx = Store & {
   actions: {
     startWorkout: (id: string) => void;
     cancelStart: (id: string) => void;
+    setGym: (id: string, gym: string | null) => void;
     setExerciseDone: (workoutId: string, itemId: string, done: boolean) => void;
     saveSet: (
       workoutId: string,
@@ -176,6 +177,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const now = new Date().toISOString();
         patchWorkout(id, (w) => (w.started_at ? w : { ...w, started_at: now }));
         supabase.from("workouts").update({ started_at: now }).eq("id", id).is("started_at", null).then();
+      },
+      setGym(id, gym) {
+        patchWorkout(id, (w) => ({ ...w, gym }));
+        supabase.from("workouts").update({ gym }).eq("id", id).then();
       },
       cancelStart(id) {
         patchWorkout(id, (w) => ({ ...w, started_at: null }));
