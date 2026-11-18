@@ -340,7 +340,9 @@ function ExerciseCard({
               <div>Sec{perSide ? " / side" : ""}</div>
             ) : (
               <>
-                <div>{loadType === "band" ? "Band" : loadType === "bodyweight" ? "+kg" : "kg"}</div>
+                <div>
+                  {loadType === "band" ? "Band" : loadType === "stack" ? "Pin" : loadType === "bodyweight" ? "+kg" : "kg"}
+                </div>
                 <div>Reps</div>
               </>
             )}
@@ -447,6 +449,8 @@ function SetRow({
         <>
           {loadType === "band"
             ? field("band", "Band", "band", "text")
+            : loadType === "stack"
+              ? field("band", "Pin and gym", "e.g. 20", "text")
             : loadType === "bodyweight"
               ? field("weightKg", "Added kilograms", "BW", "decimal")
               : field("weightKg", "Kilograms", "kg", "decimal")}
