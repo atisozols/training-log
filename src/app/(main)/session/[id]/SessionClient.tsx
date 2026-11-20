@@ -383,7 +383,9 @@ function ExerciseCard({
               }}
             />
           ))}
-          {isRehab && <SqueezeTest workoutId={workoutId} reflection={reflection} readOnly={readOnly} />}
+          {isRehab && it.with_test && (
+            <SqueezeTest workoutId={workoutId} reflection={reflection} readOnly={readOnly} />
+          )}
         </div>
         )}
         </div>

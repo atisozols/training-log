@@ -53,6 +53,7 @@ export type WorkoutExercise = {
   intensity: string | null;
   notes: string | null;
   completed_at: string | null;
+  with_test?: boolean;
   exercise: Exercise;
   set_logs: SetLog[];
 };
